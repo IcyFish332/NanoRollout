@@ -97,6 +97,15 @@ class SweTaskAdapter(TaskAdapter):
         request: TaskRunRequest,
     ) -> Any:
         spec = task.metadata["swe_spec"]
+        k8s_keys = {
+            "namespace", "resource_requests", "resource_limits",
+            "acr_registry", "acr_namespace", "use_acr",
+            "active_deadline_seconds", "startup_timeout",
+            "node_selector", "image_pull_secrets",
+        }
+        extra_kwargs = {
+            k: v for k, v in request.extra_args.items() if k in k8s_keys
+        }
         return create_environment(
             env_type=request.env_type,
             instance=task.payload,
@@ -106,6 +115,7 @@ class SweTaskAdapter(TaskAdapter):
             create_timeout=spec.create_timeout,
             step_timeout=spec.step_timeout,
             eval_timeout=spec.eval_timeout,
+            **extra_kwargs,
         )
 
     def describe_environment(

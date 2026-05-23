@@ -23,6 +23,7 @@ def create_environment(
     create_timeout: Optional[int] = None,
     step_timeout: Optional[int] = None,
     eval_timeout: Optional[int] = None,
+    **kwargs: Any,
 ):
     create_timeout = create_timeout or 600
     step_timeout = step_timeout or 600
@@ -56,6 +57,17 @@ def create_environment(
             instance=instance,
             workspace_dir=workspace_dir,
             timeout=env_timeout,
+        )
+    if env_type == "k8s":
+        from nanorollout.envs.shell_env.k8s import KubernetesEnvironment
+
+        return KubernetesEnvironment(
+            image=image,
+            instance=instance,
+            workspace_dir=workspace_dir,
+            timeout=env_timeout,
+            create_timeout=create_timeout,
+            **kwargs,
         )
     raise ValueError(f"Unsupported environment type: {env_type}")
 

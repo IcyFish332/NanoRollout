@@ -182,7 +182,7 @@ def _run_swebench_eval(
     instance_id = instance.get("instance_id", "unknown")
     eval_output = None
     try:
-        test_spec = make_test_spec(instance, arch="x86_64")
+        test_spec = make_test_spec(instance)
         eval_script = test_spec.eval_script
         if workspace_dir != "/testbed":
             eval_script = eval_script.replace("/testbed", workspace_dir)

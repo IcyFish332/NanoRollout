@@ -23,9 +23,18 @@ __all__ = [
     "GIT_COMMIT_MESSAGE",
     "GIT_USER_EMAIL",
     "GIT_USER_NAME",
+    "KubernetesEnvironment",
     "ShellEnvironment",
     "TOOL_LOGGER_NAME",
     "ToolResult",
     "extract_cwd_marker",
     "maybe_truncate",
 ]
+
+
+def __getattr__(name: str):
+    if name == "KubernetesEnvironment":
+        from .k8s import KubernetesEnvironment
+
+        return KubernetesEnvironment
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
