@@ -294,6 +294,37 @@ run_r2egym = _make_swe_runner(
     )
 )
 
+def _build_sweagent(
+    env_obj: Any,
+    task: TaskSpec,
+    request: TaskRunRequest,
+    trial_dir: Path,
+) -> Any:
+    del trial_dir
+    from nanorollout.harness.agents.swe.sweagent_wrapper import SWEAgentWrapper
+
+    spec: SweTaskSpec = task.metadata["swe_spec"]
+    return SWEAgentWrapper(
+        shell_env=env_obj,
+        model_name=request.model_name,
+        api_base=request.base_url,
+        api_key=request.api_key,
+        max_iterations=spec.max_iterations,
+        step_timeout=spec.step_timeout,
+        sweagent_config_path=request.extra_args.get("sweagent_config"),
+    )
+
+
+run_sweagent = _make_swe_runner(
+    SweAgentSpec(
+        entrypoint="run_sweagent",
+        runner_label="SWE-agent",
+        task_builder=_raw_problem_statement,
+        agent_builder=_build_sweagent,
+    )
+)
+
+
 run_installed_claude_code = _make_swe_runner(
     _installed_spec("claude-code", "run_installed_claude_code")
 )

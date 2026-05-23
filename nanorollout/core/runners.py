@@ -93,6 +93,11 @@ RUNNER_SPECS: tuple[RunnerSpec, ...] = (
         "run_r2egym",
         aliases=("r2e-gym",),
     ),
+    _swe_runner(
+        "swe-agent",
+        "run_sweagent",
+        aliases=("sweagent",),
+    ),
     RunnerSpec(
         task="osworld",
         agent="qwen3vl-mmagents",
