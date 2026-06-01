@@ -119,7 +119,7 @@ class SweDatasetAdapter:
         del request
         split = f".{self.image_split}" if self.image_split else ""
         image_id = self.image_id(instance)
-        if env_type in ("docker", "modal", "k8s"):
+        if env_type in ("docker", "modal", "k8s", "e2b"):
             return (
                 f"docker.io/{self.namespace}/{self.image_dataset}{split}.x86_64."
                 f"{image_id}:latest"
@@ -170,7 +170,7 @@ class SweRebenchDatasetAdapter(SweDatasetAdapter):
         request: Optional[TaskRunRequest] = None,
     ) -> str:
         del request
-        if env_type in ("docker", "modal", "k8s"):
+        if env_type in ("docker", "modal", "k8s", "e2b"):
             image = instance.get("image_name") or instance.get("docker_image")
             if image:
                 return str(image)
@@ -218,7 +218,7 @@ class SweBenchProDatasetAdapter(SweDatasetAdapter):
         env_type: str,
         request: Optional[TaskRunRequest] = None,
     ) -> str:
-        if env_type not in ("docker", "modal", "k8s"):
+        if env_type not in ("docker", "modal", "k8s", "e2b"):
             raise ValueError("SWE-Bench Pro uses DockerHub images; use docker or modal")
 
         extra_args = request.extra_args if request is not None else {}
@@ -287,7 +287,7 @@ class SweSmithDatasetAdapter(SweDatasetAdapter):
         request: Optional[TaskRunRequest] = None,
     ) -> str:
         del request
-        if env_type in ("docker", "modal", "k8s"):
+        if env_type in ("docker", "modal", "k8s", "e2b"):
             image = instance.get("image_name") or instance.get("docker_image")
             if image:
                 return str(image)
@@ -338,7 +338,7 @@ class R2EGymDatasetAdapter(SweDatasetAdapter):
         commit_hash = instance.get("commit_hash", "")
         if env_type == "enroot":
             return f"{self.namespace}+{repo_name}_final+{commit_hash}.sqsh".lower()
-        if env_type in ("docker", "modal", "k8s"):
+        if env_type in ("docker", "modal", "k8s", "e2b"):
             return f"docker.io/{self.namespace}/{repo_name}_final:{commit_hash}".lower()
         raise ValueError(f"Unknown environment class: {env_type}")
 

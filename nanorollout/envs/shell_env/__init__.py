@@ -19,6 +19,7 @@ __all__ = [
     "BaseEnvironment",
     "DEFAULT_TRUNCATE_NOTICE",
     "DEFAULT_TRUNCATE_NOTICE_WITH_PERSIST",
+    "E2BEnvironment",
     "ExecutionResult",
     "GIT_COMMIT_MESSAGE",
     "GIT_USER_EMAIL",
@@ -37,4 +38,8 @@ def __getattr__(name: str):
         from .k8s import KubernetesEnvironment
 
         return KubernetesEnvironment
+    if name == "E2BEnvironment":
+        from .e2b import E2BEnvironment
+
+        return E2BEnvironment
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

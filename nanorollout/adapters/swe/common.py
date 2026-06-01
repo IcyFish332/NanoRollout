@@ -69,6 +69,16 @@ def create_environment(
             create_timeout=create_timeout,
             **kwargs,
         )
+    if env_type == "e2b":
+        from nanorollout.envs.shell_env.e2b import E2BEnvironment
+
+        return E2BEnvironment(
+            image=image,
+            instance=instance,
+            workspace_dir=workspace_dir,
+            timeout=env_timeout,
+            **kwargs,
+        )
     raise ValueError(f"Unsupported environment type: {env_type}")
 
 

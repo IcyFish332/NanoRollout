@@ -103,8 +103,15 @@ class SweTaskAdapter(TaskAdapter):
             "active_deadline_seconds", "startup_timeout",
             "node_selector", "image_pull_secrets",
         }
+        e2b_keys = {
+            "sandbox_timeout", "request_timeout", "template_map",
+            "template_strip_prefix", "template_replace_suffix", "template_suffix",
+            "api_key", "api_url", "domain", "force_http",
+            "user", "allow_internet_access",
+        }
+        allowed_keys = k8s_keys | e2b_keys
         extra_kwargs = {
-            k: v for k, v in request.extra_args.items() if k in k8s_keys
+            k: v for k, v in request.extra_args.items() if k in allowed_keys
         }
         return create_environment(
             env_type=request.env_type,
