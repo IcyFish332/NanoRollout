@@ -158,6 +158,23 @@ class SweGymDatasetAdapter(SweDatasetAdapter):
     namespace = "xingyaoww"
     id_separator = "_s_"
 
+    def evaluate(
+        self,
+        env_obj: Any,
+        task: TaskSpec,
+        request: TaskRunRequest,
+    ) -> tuple[dict[str, Any], Optional[str]]:
+        # SWE-Gym repos are absent from vanilla swebench's spec maps; grade with the
+        # swegym fork's harness (registers pydantic/getmoto/dask/dvc/MONAI/...).
+        del request
+        return run_swebench_eval(
+            env_obj,
+            task.payload,
+            task.evaluation.get("eval_timeout"),
+            task.environment.get("workspace_dir"),
+            harness="swegym",
+        )
+
 
 class SweRebenchDatasetAdapter(SweDatasetAdapter):
     dataset_revision = SWE_REBENCH_REVISION

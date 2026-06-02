@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import tempfile
 from typing import Any, Optional
 
@@ -252,12 +253,112 @@ def _run_swebench_eval(
         )
 
 
-def run_swebench_eval(
+def _run_swegym_eval(
     env_obj: Any,
     instance: dict[str, Any],
     eval_timeout: Optional[int],
     workspace_dir: str,
 ) -> tuple[dict[str, Any], Optional[str]]:
+    """Grade a SWE-Gym instance using the ``swegym`` harness fork.
+
+    SWE-Gym's repos (pydantic/getmoto/dask/dvc/MONAI/...) are NOT in vanilla
+    ``swebench``'s MAP_REPO_VERSION_TO_SPECS, so ``swebench.harness.make_test_spec``
+    raises ``KeyError(repo)`` on them. The ``swegym`` package (SWE-Gym/SWE-Bench-Package)
+    is a swebench fork that registers exactly those repos. Note its API differs from
+    modern swebench: ``get_logs_eval(log_fp)`` takes a single path and derives the repo
+    from ``Path(log_fp).parent.stem`` — so the eval log MUST live under a dir named
+    exactly ``<instance_id>``. We therefore call swegym's ``get_eval_report`` (which
+    runs that path-based parser internally) instead of the swebench two-arg form.
+    """
+    try:
+        from swegym.harness.constants import (
+            KEY_INSTANCE_ID,
+            KEY_MODEL,
+            KEY_PREDICTION,
+            ResolvedStatus,
+        )
+        from swegym.harness.grading import get_eval_report
+        from swegym.harness.test_spec import make_test_spec
+    except ImportError as exc:
+        raise _missing_package_error("swegym") from exc
+
+    instance_id = instance.get("instance_id", "unknown")
+    eval_output = None
+    try:
+        test_spec = make_test_spec(instance)
+        eval_script = test_spec.eval_script
+        if workspace_dir != "/testbed":
+            eval_script = eval_script.replace("/testbed", workspace_dir)
+        eval_result = env_obj.execute(eval_script, timeout=eval_timeout or 1800)
+        eval_output = eval_result.output or ""
+
+        # swegym.get_logs_eval derives the repo from Path(log).parent.stem and looks it
+        # up in MAP_REPO_TO_PARSER, which swegym LOWERCASES. So the log dir must be the
+        # LOWERCASED instance_id, else capitalized repos (e.g. Project-MONAI/MONAI) raise
+        # KeyError. (prediction/report_map still key on the original instance_id.)
+        log_dir = tempfile.mkdtemp(prefix="swegym_")
+        inst_dir = os.path.join(log_dir, instance_id.lower())
+        os.makedirs(inst_dir, exist_ok=True)
+        log_path = os.path.join(inst_dir, "test_output.txt")
+        with open(log_path, "w") as handle:
+            handle.write(eval_output)
+
+        # model_patch="" (not None): the model's edits are already applied in-sandbox;
+        # this field only gates swegym's patch_exists check.
+        prediction = {
+            KEY_INSTANCE_ID: instance_id,
+            KEY_MODEL: "nanorollout",
+            KEY_PREDICTION: "",
+        }
+        report_map = get_eval_report(test_spec, prediction, log_path, True)
+        report = report_map.get(instance_id, {})
+        tests_status = report.get("tests_status", {})
+        resolved = bool(report.get("resolved", False))
+        resolved_status = (
+            ResolvedStatus.FULL.value if resolved else ResolvedStatus.NO.value
+        )
+        logger.info(
+            "[%s] SWE-Gym eval: resolved=%s, applied=%s, reward=%s",
+            instance_id,
+            resolved,
+            report.get("patch_successfully_applied"),
+            1 if resolved else 0,
+        )
+        return (
+            {
+                "resolved": resolved,
+                "resolved_status": resolved_status,
+                "reward": 1 if resolved else 0,
+                "eval_exit_code": eval_result.exit_code,
+                "status_map": {},
+                "report": tests_status,
+            },
+            eval_output,
+        )
+    except Exception as exc:
+        logger.exception("[%s] SWE-Gym eval failed: %s", instance_id, exc)
+        return (
+            {
+                "resolved": False,
+                "resolved_status": "RESOLVED_NO",
+                "reward": 0,
+                "error": str(exc),
+                "status_map": {},
+                "report": {},
+            },
+            eval_output,
+        )
+
+
+def run_swebench_eval(
+    env_obj: Any,
+    instance: dict[str, Any],
+    eval_timeout: Optional[int],
+    workspace_dir: str,
+    harness: str = "swebench",
+) -> tuple[dict[str, Any], Optional[str]]:
+    if harness == "swegym":
+        return _run_swegym_eval(env_obj, instance, eval_timeout, workspace_dir)
     if _is_swesmith_instance(instance):
         return _run_swesmith_eval(env_obj, instance, eval_timeout, workspace_dir)
     return _run_swebench_eval(env_obj, instance, eval_timeout, workspace_dir)
