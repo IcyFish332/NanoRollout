@@ -137,7 +137,7 @@ class ShellEnvironment(ABC):
         ...
 
     @abstractmethod
-    def execute(self, command: str, timeout: Optional[int] = None) -> ExecutionResult:
+    def execute(self, command: str, timeout: Optional[int] = None, reset_env: bool = False) -> ExecutionResult:
         """Execute a command in the environment."""
         ...
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import shlex
+import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -26,6 +27,7 @@ from .base import ExecutionResult, ShellEnvironment, extract_cwd_marker
 logger = logging.getLogger(__name__)
 
 _PWD_MARKER = "__NANOROLLOUT_PWD__"
+_ROUTE_RETRIES = 6  # retries for transient "Failed to route request to sandbox" / Code.unavailable
 
 
 def _e2b_template_alias_for_docker_image(image_name: str) -> str:
@@ -230,20 +232,26 @@ class E2BEnvironment(ShellEnvironment):
         except Exception:
             return False
 
-    def execute(self, command: str, timeout: Optional[int] = None) -> ExecutionResult:
+    def execute(self, command: str, timeout: Optional[int] = None, reset_env: bool = False) -> ExecutionResult:
         if self._sandbox is None:
             raise RuntimeError("E2B sandbox is not running")
 
-        # Merge the command's stderr into stdout (to match the K8s pty ordering),
-        # then emit a trailing PWD marker so the next call resumes in the same
-        # working directory (each commands.run is a fresh process).
+        # Per-step state: cwd + exported env persist across calls via the shared FS
+        # (commands.run is stateless), so `cd`/`export FOO=`/`source venv` survive.
+        # reset_env=True runs in a CLEAN shell (no sourced agent state, no snapshot) —
+        # used for grading so the agent's leftover PATH/PYTHONPATH can't taint reward.
         safe_cwd = shlex.quote(self._cwd)
-        inner = (
-            f"cd {safe_cwd} && {{ {command}\n}} 2>&1\n"
-            "status=$?\n"
-            f"printf '\\n{_PWD_MARKER}%s\\n' \"$(pwd)\"\n"
-            "exit $status"
-        )
+        if reset_env:
+            inner = f"cd {safe_cwd} && {{ {command}\n}} 2>&1"
+        else:
+            inner = (
+                "[ -f /tmp/.nro_env ] && . /tmp/.nro_env 2>/dev/null\n"
+                f"cd {safe_cwd} && {{ {command}\n}} 2>&1\n"
+                "status=$?\n"
+                "export -p > /tmp/.nro_env 2>/dev/null\n"
+                f"printf '\\n{_PWD_MARKER}%s\\n' \"$(pwd)\"\n"
+                "exit $status"
+            )
         full_command = f"bash -lc {shlex.quote(inner)}"
 
         timeout_s = self.config.timeout if timeout is None else timeout
@@ -282,6 +290,7 @@ class E2BEnvironment(ShellEnvironment):
         We turn both into objects carrying ``stdout``/``stderr``/``exit_code``.
         """
         kwargs = dict(run_kwargs)
+        attempt = 0
         while True:
             try:
                 return self._sandbox.commands.run(command, **kwargs)
@@ -298,6 +307,19 @@ class E2BEnvironment(ShellEnvironment):
                 name = type(exc).__name__
                 if name == "CommandExitException":
                     return exc  # carries stdout/stderr/exit_code
+                # Transient router failures ("Failed to route request to sandbox" /
+                # Code.unavailable) are raised by the SDK as TimeoutException even
+                # though the command never ran. These are NOT real timeouts — retry
+                # with backoff, else a 15s task gets a bogus "timed out" and the agent
+                # loses the turn (~17% of tool calls observed). Retry before giving up.
+                msg = (str(getattr(exc, "stdout", "")) + str(exc)).lower()
+                if attempt < _ROUTE_RETRIES and (
+                    "route request to sandbox" in msg or "unavailable" in msg
+                    or "connectexception" in name.lower()
+                ):
+                    attempt += 1
+                    time.sleep(min(2 ** attempt, 15))
+                    continue
                 if name == "TimeoutException":
                     return _TimeoutResult(
                         stdout=_to_text(getattr(exc, "stdout", "")),

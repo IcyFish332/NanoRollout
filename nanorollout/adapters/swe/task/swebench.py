@@ -187,7 +187,7 @@ def _run_swebench_eval(
         eval_script = test_spec.eval_script
         if workspace_dir != "/testbed":
             eval_script = eval_script.replace("/testbed", workspace_dir)
-        eval_result = env_obj.execute(eval_script, timeout=eval_timeout or 1800)
+        eval_result = env_obj.execute(eval_script, timeout=eval_timeout or 1800, reset_env=True)
         eval_output = eval_result.output or ""
         log_path = _write_temp_log(eval_output)
         status_map, found = get_logs_eval(test_spec, log_path)
@@ -289,7 +289,7 @@ def _run_swegym_eval(
         eval_script = test_spec.eval_script
         if workspace_dir != "/testbed":
             eval_script = eval_script.replace("/testbed", workspace_dir)
-        eval_result = env_obj.execute(eval_script, timeout=eval_timeout or 1800)
+        eval_result = env_obj.execute(eval_script, timeout=eval_timeout or 1800, reset_env=True)
         eval_output = eval_result.output or ""
 
         # swegym.get_logs_eval derives the repo from Path(log).parent.stem and looks it
