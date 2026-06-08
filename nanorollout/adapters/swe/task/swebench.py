@@ -177,13 +177,23 @@ def _run_swebench_eval(
             get_resolution_status,
         )
         from swebench.harness.test_spec.test_spec import make_test_spec
+        import swebench.harness.test_spec.python as _swe_py
     except ImportError as exc:
         raise _missing_package_error("swebench") from exc
 
     instance_id = instance.get("instance_id", "unknown")
     eval_output = None
     try:
-        test_spec = make_test_spec(instance)
+        # E2B templates are pre-built with all deps installed; make_test_spec's
+        # make_env_script_list downloads requirements.txt from GitHub (host-side)
+        # which times out on offline GPU nodes. We only need eval_script (run tests),
+        # not env_script_list (create conda env), so short-circuit to skip the download.
+        _orig_env = _swe_py.make_env_script_list_py
+        _swe_py.make_env_script_list_py = lambda *a, **kw: []
+        try:
+            test_spec = make_test_spec(instance)
+        finally:
+            _swe_py.make_env_script_list_py = _orig_env
         eval_script = test_spec.eval_script
         if workspace_dir != "/testbed":
             eval_script = eval_script.replace("/testbed", workspace_dir)
@@ -278,14 +288,22 @@ def _run_swegym_eval(
             ResolvedStatus,
         )
         from swegym.harness.grading import get_eval_report
-        from swegym.harness.test_spec import make_test_spec
+        from swegym.harness.test_spec import make_test_spec, make_env_script_list as _gym_env
+        import swegym.harness.test_spec as _gym_ts
     except ImportError as exc:
         raise _missing_package_error("swegym") from exc
 
     instance_id = instance.get("instance_id", "unknown")
     eval_output = None
     try:
-        test_spec = make_test_spec(instance)
+        # Same skip as _run_swebench_eval: E2B templates are pre-built, so
+        # env_script_list (which downloads requirements from GitHub) is not needed.
+        _orig_env = _gym_ts.make_env_script_list
+        _gym_ts.make_env_script_list = lambda *a, **kw: []
+        try:
+            test_spec = make_test_spec(instance)
+        finally:
+            _gym_ts.make_env_script_list = _orig_env
         eval_script = test_spec.eval_script
         if workspace_dir != "/testbed":
             eval_script = eval_script.replace("/testbed", workspace_dir)
