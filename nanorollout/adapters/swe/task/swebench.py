@@ -197,6 +197,11 @@ def _run_swebench_eval(
         finally:
             _swe_ts.make_env_script_list = _orig
         eval_script = test_spec.eval_script
+        # E2B templates have deps pre-installed; skip `pip install` in eval_script
+        # to avoid recompiling large C projects (pandas >1800s timeout on 4vCPU).
+        eval_script = "\n".join(
+            l for l in eval_script.splitlines() if "pip install" not in l
+        )
         if workspace_dir != "/testbed":
             eval_script = eval_script.replace("/testbed", workspace_dir)
         eval_result = env_obj.execute(eval_script, timeout=eval_timeout or 1800, reset_env=True)
@@ -307,6 +312,11 @@ def _run_swegym_eval(
         finally:
             _gym_ts.make_env_script_list = _orig_env
         eval_script = test_spec.eval_script
+        # E2B templates have deps pre-installed; skip `pip install` in eval_script
+        # to avoid recompiling large C projects (pandas >1800s timeout on 4vCPU).
+        eval_script = "\n".join(
+            l for l in eval_script.splitlines() if "pip install" not in l
+        )
         if workspace_dir != "/testbed":
             eval_script = eval_script.replace("/testbed", workspace_dir)
         eval_result = env_obj.execute(eval_script, timeout=eval_timeout or 1800, reset_env=True)
