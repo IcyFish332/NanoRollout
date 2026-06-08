@@ -197,10 +197,17 @@ def _run_swebench_eval(
         finally:
             _swe_ts.make_env_script_list = _orig
         eval_script = test_spec.eval_script
-        # E2B templates have deps pre-installed; skip `pip install` in eval_script
-        # to avoid recompiling large C projects (pandas >1800s timeout on 4vCPU).
-        eval_script = "\n".join(
-            l for l in eval_script.splitlines() if "pip install" not in l
+        # E2B templates have deps pre-installed. The eval_script's `pip install -e .`
+        # / `pip install -ve .` recompiles C extensions from source, timing out on
+        # large projects (pandas >1800s on 4vCPU). Replace with --no-build-isolation
+        # --no-deps to keep the editable registration (so /testbed code changes are
+        # importable) while skipping compilation and dependency resolution.
+        eval_script = eval_script.replace(
+            "pip install -ve . --no-build-isolation",
+            "pip install -ve . --no-build-isolation --no-deps",
+        ).replace(
+            "pip install -e .",
+            "pip install -e . --no-build-isolation --no-deps",
         )
         if workspace_dir != "/testbed":
             eval_script = eval_script.replace("/testbed", workspace_dir)
@@ -312,10 +319,17 @@ def _run_swegym_eval(
         finally:
             _gym_ts.make_env_script_list = _orig_env
         eval_script = test_spec.eval_script
-        # E2B templates have deps pre-installed; skip `pip install` in eval_script
-        # to avoid recompiling large C projects (pandas >1800s timeout on 4vCPU).
-        eval_script = "\n".join(
-            l for l in eval_script.splitlines() if "pip install" not in l
+        # E2B templates have deps pre-installed. The eval_script's `pip install -e .`
+        # / `pip install -ve .` recompiles C extensions from source, timing out on
+        # large projects (pandas >1800s on 4vCPU). Replace with --no-build-isolation
+        # --no-deps to keep the editable registration (so /testbed code changes are
+        # importable) while skipping compilation and dependency resolution.
+        eval_script = eval_script.replace(
+            "pip install -ve . --no-build-isolation",
+            "pip install -ve . --no-build-isolation --no-deps",
+        ).replace(
+            "pip install -e .",
+            "pip install -e . --no-build-isolation --no-deps",
         )
         if workspace_dir != "/testbed":
             eval_script = eval_script.replace("/testbed", workspace_dir)
