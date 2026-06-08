@@ -75,8 +75,11 @@ class CodeActAgent(BaseAgent):
         name = tool_call.function.name
         try:
             arguments = json.loads(tool_call.function.arguments)
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, TypeError) as e:
             return f"Error parsing tool arguments: {e}"
+
+        if not isinstance(arguments, dict):
+            return f"Error: tool arguments must be a JSON object, got {type(arguments).__name__}"
 
         logger.info(f"Tool call: {name} with args: {arguments}")
 

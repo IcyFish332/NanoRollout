@@ -181,10 +181,16 @@ class ShellEnvironment(ABC):
         started = time.time()
         try:
             result = handler(**kwargs)
-        except Exception:
+        except Exception as exc:
             if tool_logger.isEnabledFor(logging.ERROR):
                 tool_logger.exception("%stool_error name=%s", log_prefix, tool_name)
-            raise
+            # Return error to the agent instead of crashing the run — malformed
+            # tool calls (missing args, None kwargs) should get an error message
+            # so the agent can retry, not kill the entire trajectory.
+            return ToolResult(
+                output=f"Error executing tool '{tool_name}': {type(exc).__name__}: {exc}",
+                success=False,
+            )
         duration = time.time() - started
         if tool_logger.isEnabledFor(logging.INFO):
             metadata = result.metadata

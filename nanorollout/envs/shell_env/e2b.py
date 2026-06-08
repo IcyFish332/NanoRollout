@@ -316,6 +316,8 @@ class E2BEnvironment(ShellEnvironment):
                 if attempt < _ROUTE_RETRIES and (
                     "route request to sandbox" in msg or "unavailable" in msg
                     or "connectexception" in name.lower()
+                    or "error starting process" in msg
+                    or "invalidargument" in name.lower()
                 ):
                     attempt += 1
                     time.sleep(min(2 ** attempt, 15))
