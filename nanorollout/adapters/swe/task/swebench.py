@@ -176,8 +176,8 @@ def _run_swebench_eval(
             get_logs_eval,
             get_resolution_status,
         )
+        import swebench.harness.test_spec.test_spec as _swe_ts
         from swebench.harness.test_spec.test_spec import make_test_spec
-        import swebench.harness.test_spec.python as _swe_py
     except ImportError as exc:
         raise _missing_package_error("swebench") from exc
 
@@ -185,15 +185,17 @@ def _run_swebench_eval(
     eval_output = None
     try:
         # E2B templates are pre-built with all deps installed; make_test_spec's
-        # make_env_script_list downloads requirements.txt from GitHub (host-side)
-        # which times out on offline GPU nodes. We only need eval_script (run tests),
-        # not env_script_list (create conda env), so short-circuit to skip the download.
-        _orig_env = _swe_py.make_env_script_list_py
-        _swe_py.make_env_script_list_py = lambda *a, **kw: []
+        # make_env_script_list downloads requirements/environment.yml from GitHub
+        # (host-side) which times out on offline GPU nodes. We only need eval_script
+        # (run tests), not env_script_list (create conda env). Patch the top-level
+        # make_env_script_list imported into test_spec.py to skip ALL download paths
+        # (both requirements.txt and conda environment.yml).
+        _orig = _swe_ts.make_env_script_list
+        _swe_ts.make_env_script_list = lambda *a, **kw: []
         try:
             test_spec = make_test_spec(instance)
         finally:
-            _swe_py.make_env_script_list_py = _orig_env
+            _swe_ts.make_env_script_list = _orig
         eval_script = test_spec.eval_script
         if workspace_dir != "/testbed":
             eval_script = eval_script.replace("/testbed", workspace_dir)
