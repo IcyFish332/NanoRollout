@@ -197,18 +197,22 @@ def _run_swebench_eval(
         finally:
             _swe_ts.make_env_script_list = _orig
         eval_script = test_spec.eval_script
-        # E2B templates have deps pre-installed. The eval_script's `pip install -e .`
-        # / `pip install -ve .` recompiles C extensions from source, timing out on
-        # large projects (pandas >1800s on 4vCPU). Replace with --no-build-isolation
-        # --no-deps to keep the editable registration (so /testbed code changes are
-        # importable) while skipping compilation and dependency resolution.
-        eval_script = eval_script.replace(
-            "pip install -ve . --no-build-isolation",
-            "pip install -ve . --no-build-isolation --no-deps",
-        ).replace(
-            "pip install -e .",
-            "pip install -e . --no-build-isolation --no-deps",
-        )
+        # E2B templates have deps pre-installed. Editable installs in eval_script
+        # recompile C extensions (pandas >1800s on 4vCPU). Append --no-build-isolation
+        # --no-deps to any `pip install` that targets `.` (editable project install),
+        # covering `pip install -e .`, `python -m pip install -ve . ...`, etc.
+        # Non-editable installs (requirements.txt, named packages) are left untouched.
+        _patched_lines = []
+        for _line in eval_script.splitlines():
+            if "pip install" in _line and "--no-deps" not in _line:
+                # Split on `;` to handle chained commands per line
+                _parts = _line.split(";")
+                for _j, _p in enumerate(_parts):
+                    if "pip install" in _p and (" -e ." in _p or " -ve ." in _p or _p.rstrip().endswith(" .")):
+                        _parts[_j] = _p.rstrip() + " --no-build-isolation --no-deps"
+                _line = ";".join(_parts)
+            _patched_lines.append(_line)
+        eval_script = "\n".join(_patched_lines)
         if workspace_dir != "/testbed":
             eval_script = eval_script.replace("/testbed", workspace_dir)
         eval_result = env_obj.execute(eval_script, timeout=eval_timeout or 1800, reset_env=True)
@@ -319,18 +323,22 @@ def _run_swegym_eval(
         finally:
             _gym_ts.make_env_script_list = _orig_env
         eval_script = test_spec.eval_script
-        # E2B templates have deps pre-installed. The eval_script's `pip install -e .`
-        # / `pip install -ve .` recompiles C extensions from source, timing out on
-        # large projects (pandas >1800s on 4vCPU). Replace with --no-build-isolation
-        # --no-deps to keep the editable registration (so /testbed code changes are
-        # importable) while skipping compilation and dependency resolution.
-        eval_script = eval_script.replace(
-            "pip install -ve . --no-build-isolation",
-            "pip install -ve . --no-build-isolation --no-deps",
-        ).replace(
-            "pip install -e .",
-            "pip install -e . --no-build-isolation --no-deps",
-        )
+        # E2B templates have deps pre-installed. Editable installs in eval_script
+        # recompile C extensions (pandas >1800s on 4vCPU). Append --no-build-isolation
+        # --no-deps to any `pip install` that targets `.` (editable project install),
+        # covering `pip install -e .`, `python -m pip install -ve . ...`, etc.
+        # Non-editable installs (requirements.txt, named packages) are left untouched.
+        _patched_lines = []
+        for _line in eval_script.splitlines():
+            if "pip install" in _line and "--no-deps" not in _line:
+                # Split on `;` to handle chained commands per line
+                _parts = _line.split(";")
+                for _j, _p in enumerate(_parts):
+                    if "pip install" in _p and (" -e ." in _p or " -ve ." in _p or _p.rstrip().endswith(" .")):
+                        _parts[_j] = _p.rstrip() + " --no-build-isolation --no-deps"
+                _line = ";".join(_parts)
+            _patched_lines.append(_line)
+        eval_script = "\n".join(_patched_lines)
         if workspace_dir != "/testbed":
             eval_script = eval_script.replace("/testbed", workspace_dir)
         eval_result = env_obj.execute(eval_script, timeout=eval_timeout or 1800, reset_env=True)
